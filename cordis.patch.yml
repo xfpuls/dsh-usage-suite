@@ -1,0 +1,5 @@
+# dsh-usage-suite 的宿主条目：装载用量统计的宿主半（回填、实时订阅、只读接口）。
+- insert:
+    - id: dsh-usage-suite
+      name: 'dsh-usage-suite'
+      config: {}

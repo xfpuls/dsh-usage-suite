@@ -1,0 +1,42 @@
+{
+  "name": "dsh-usage-suite",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "DSH 用量与费用统计 + 提问置顶：输入框下方显示本轮花费，侧栏显示今日 token、消费与空闲/高峰时段，对话区顶部钉住当前提问并可点击巡回。",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "license": "MIT",
+  "author": "dsh-usage-suite contributors"
+}
