@@ -86,7 +86,7 @@ test('模块以 dsh-usage-suite 注册并导出 inject/apply', () => {
   assert.ok(definition);
   assert.equal(definition.id, 'dsh-usage-suite');
   const plugin = definition.factory(require);
-  assert.deepEqual(plugin.inject, ['slots']);
+  assert.deepEqual(plugin.inject, ['slots', 'configForms']);
   assert.equal(typeof plugin.apply, 'function');
 });
 
@@ -227,4 +227,65 @@ test('完全定位不到时不抛错', () => {
   } finally {
     delete globalThis.document;
   }
+});
+
+
+test('提供 configForms 与表单构件时，注册「设置 -> 插件」卡片', () => {
+  const fakePrimitives = {
+    SettingsFormModel: class {
+      constructor(scope, specs) { this.scope = scope; this.specs = specs; }
+      bind(project) { return { getSnapshot: () => project(), subscribe: () => () => {} }; }
+      shell() { return { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false }; }
+      field() { return { text: '', overridden: false, invalid: false }; }
+      actions() { return { edit: () => {}, resetField: () => {}, save: () => {}, discard: () => {} }; }
+      dispose() {}
+    },
+    settingsTextField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: text }) }),
+    settingsNumberField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: Number(text) }) }),
+  };
+  const fakeRequire = (name) => {
+    if (name === 'react') return React;
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') return fakePrimitives;
+    throw new Error('unknown module ' + name);
+  };
+  const plugin = definition.factory(fakeRequire);
+  const registered = [];
+  const scope = {
+    subscribe: () => () => {},
+    getSnapshot: () => ({ status: 'ready', writable: true, value: {} }),
+  };
+  plugin.apply({
+    effect: (fn) => { const d = fn(); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+    slots: {
+      inject: (_name, factory) => { factory(); return () => {}; },
+      register: (entry, component) => { registered.push({ entry, component }); return () => {}; },
+    },
+    configForms: {
+      get: () => scope,
+      whileServed: (_namespaces, register) => { const off = register(new Set()); return () => off?.(); },
+    },
+  });
+  const card = registered.find((item) => item.entry.id === 'dsh-usage-suite');
+  assert.ok(card, '应注册设置卡片');
+  assert.equal(card.entry.name, 'plugins.item');
+  assert.equal(typeof card.component, 'function');
+  assert.equal(card.component({}), null, '没有表单快照时不渲染');
+});
+
+test('表单构件缺失时安静跳过设置卡片，不影响三个挂载点', () => {
+  const plugin = definition.factory((name) => {
+    if (name === 'react') return React;
+    throw new Error('unknown module ' + name);
+  });
+  const registered = [];
+  plugin.apply({
+    effect: (fn) => { const d = fn(); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+    slots: {
+      inject: (_name, factory) => { factory(); return () => {}; },
+      register: (entry, component) => { registered.push({ entry, component }); return () => {}; },
+    },
+    configForms: { get: () => ({}), whileServed: () => () => {} },
+  });
+  assert.equal(registered.length, 3, '仍然注册三个界面挂载点');
+  assert.ok(!registered.some((item) => item.entry.name === 'plugins.item'));
 });
