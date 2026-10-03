@@ -332,3 +332,70 @@ test('对话区可见时气泡照常渲染', () => {
     delete globalThis.document;
   }
 });
+
+
+test('内容列滚到视口上方时不会误判为「被盖住」', () => {
+  const pin = registry().get('question-pin').component;
+  // 滚动视口（正常可见）
+  const scroller = {
+    scrollHeight: 5000,
+    clientHeight: 600,
+    parentElement: null,
+    getBoundingClientRect: () => ({ top: 60, left: 100, width: 800, height: 600, bottom: 660 }),
+  };
+  // 内容列：已经向上滚了 3000 像素，rect 是负的（这正是之前误判的原因）
+  const flow = {
+    parentElement: scroller,
+    getBoundingClientRect: () => ({ top: -3000, left: 100, width: 800, height: 5000, bottom: 2000 }),
+  };
+  globalThis.getComputedStyle = () => ({ overflowY: 'auto' });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      if (selector === '[data-chat-flow]') return flow;
+      return null;
+    },
+    elementFromPoint: () => ({ closest: (selector) => (selector === '[data-chat-flow]' ? {} : null) }),
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(ITEMS) });
+    assert.ok(tree, '内容列滚动不应导致气泡消失');
+    assert.ok(collectText(tree).join('').includes('第 3 轮'));
+  } finally {
+    delete globalThis.document;
+    delete globalThis.getComputedStyle;
+  }
+});
+
+test('滚动视口整块滚出可视区时才算被盖住', () => {
+  const pin = registry().get('question-pin').component;
+  const scroller = {
+    scrollHeight: 5000,
+    clientHeight: 600,
+    parentElement: null,
+    getBoundingClientRect: () => ({ top: -700, left: 100, width: 800, height: 600, bottom: -100 }),
+  };
+  const flow = {
+    parentElement: scroller,
+    getBoundingClientRect: () => ({ top: -700, left: 100, width: 800, height: 5000, bottom: 4300 }),
+  };
+  globalThis.getComputedStyle = () => ({ overflowY: 'auto' });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      if (selector === '[data-chat-flow]') return flow;
+      return null;
+    },
+    elementFromPoint: () => ({ closest: () => null }),
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(ITEMS) }), null);
+  } finally {
+    delete globalThis.document;
+    delete globalThis.getComputedStyle;
+  }
+});
