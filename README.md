@@ -57,9 +57,13 @@ DeepSeek Harness（DSH）桌面端的一个插件，把**用量费用统计**和
 
 ## 安装
 
-1. 在 DSH profile 目录执行：pnpm add <本包的来源地址>
+从 GitHub 直接安装：
+
+1. 在 DSH profile 目录执行：pnpm add github:xfpuls/dsh-usage-suite
 2. 在该 profile 的 package.json 里把 dsh-usage-suite 加进 dsh.profile.bundles
 3. 重启一次桌面端（新增插件条目需要重启；之后改客户端代码会自动热重载）
+
+也可以从插件市场按上面的仓库地址安装。
 
 ## 已知限制
 
