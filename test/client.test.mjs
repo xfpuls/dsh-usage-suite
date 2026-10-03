@@ -602,3 +602,64 @@ test('详情页把字段分成三组，默认只展开第一组', () => {
   assert.ok(!text.includes('自动获取中国法定节假日'), '第二组默认收起');
   assert.ok(!text.includes('flash 缓存命中 · 高峰'), '第三组默认收起');
 });
+
+
+test('官方分组折叠按钮：装上后能收起与展开列表', () => {
+  const plugin = definition.factory(require);
+  const head = { children: [], appendChild(child) { this.children.push(child); child.parentElement = this; } };
+  const list = { style: {} };
+  const section = { firstElementChild: head, querySelector: (selector) => (selector === 'ul' ? list : null) };
+  const button = {
+    style: {}, attrs: {}, listeners: {}, isConnected: true, textContent: '',
+    setAttribute(key, value) { this.attrs[key] = value; },
+    addEventListener(type, fn) { this.listeners[type] = fn; },
+  };
+  const doc = {
+    querySelector(selector) {
+      if (selector === '[data-plugin-group="official"]') return section;
+      if (selector === '[data-plugin-panel="true"] button') return { className: 'official-button' };
+      return null;
+    },
+    createElement: () => button,
+  };
+  const before = globalThis.document;
+  globalThis.document = doc;
+  const cleanups = [];
+  try {
+    plugin.apply({
+      effect: (fn) => { const d = fn(); cleanups.push(d); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+      slots: { inject: (_n, f) => { f(); return () => {}; }, register: () => () => {} },
+      configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'ready' }) }) },
+    });
+    assert.equal(button.className, 'official-button', '按钮类名应抄自官方按钮');
+    assert.equal(button.textContent, '收起');
+    assert.equal(list.style.display, '', '初始展开');
+    button.listeners.click({ preventDefault() {}, stopPropagation() {} });
+    assert.equal(list.style.display, 'none', '点一次应收起');
+    assert.equal(button.textContent, '展开');
+    button.listeners.click({ preventDefault() {}, stopPropagation() {} });
+    assert.equal(list.style.display, '', '再点一次应展开');
+    assert.equal(head.children.includes(button), true, '按钮挂在分组标题行里');
+  } finally {
+    for (const d of cleanups) { try { d?.(); } catch (error) { /* noop */ } }
+    if (before === undefined) delete globalThis.document; else globalThis.document = before;
+  }
+});
+
+test('官方分组不存在时安静不做事，清理也不报错', () => {
+  const plugin = definition.factory(require);
+  const before = globalThis.document;
+  globalThis.document = { querySelector: () => null, createElement: () => ({ style: {}, setAttribute() {}, addEventListener() {} }) };
+  const cleanups = [];
+  try {
+    plugin.apply({
+      effect: (fn) => { const d = fn(); cleanups.push(d); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+      slots: { inject: (_n, f) => { f(); return () => {}; }, register: () => () => {} },
+      configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'ready' }) }) },
+    });
+    for (const d of cleanups) d?.();
+    assert.ok(true);
+  } finally {
+    if (before === undefined) delete globalThis.document; else globalThis.document = before;
+  }
+});
