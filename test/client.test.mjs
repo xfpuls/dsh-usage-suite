@@ -289,3 +289,46 @@ test('表单构件缺失时安静跳过设置卡片，不影响三个挂载点',
   assert.equal(registered.length, 3, '仍然注册三个界面挂载点');
   assert.ok(!registered.some((item) => item.entry.name === 'plugins.item'));
 });
+
+
+test('对话区被别的面板盖住时不渲染气泡', () => {
+  const pin = registry().get('question-pin').component;
+  globalThis.window = globalThis.window || {};
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      if (selector === '[data-chat-flow]') return { getBoundingClientRect: () => ({ left: 100, top: 50, width: 800, height: 600 }) };
+      return null;
+    },
+    // 命中测试返回一个不属于聊天内容的元素：说明被文件预览之类的面板盖住了
+    elementFromPoint: () => ({ closest: () => null }),
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(ITEMS) }), null);
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('对话区可见时气泡照常渲染', () => {
+  const pin = registry().get('question-pin').component;
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      if (selector === '[data-chat-flow]') return { getBoundingClientRect: () => ({ left: 100, top: 50, width: 800, height: 600 }) };
+      return null;
+    },
+    elementFromPoint: () => ({ closest: (selector) => (selector === '[data-chat-flow]' ? {} : null) }),
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(ITEMS) });
+    assert.ok(tree, '应正常渲染');
+    assert.ok(collectText(tree).join('').includes('第 3 轮'));
+  } finally {
+    delete globalThis.document;
+  }
+});
