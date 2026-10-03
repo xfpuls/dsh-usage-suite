@@ -604,23 +604,24 @@ test('详情页把字段分成三组，默认只展开第一组', () => {
 });
 
 
-test('官方分组折叠按钮：装上后能收起与展开列表', () => {
+test('官方分组折叠开关（退化路径）：装上后能收起与展开列表', () => {
   const plugin = definition.factory(require);
-  const head = { children: [], appendChild(child) { this.children.push(child); child.parentElement = this; } };
-  const list = { style: {} };
-  const section = { firstElementChild: head, querySelector: (selector) => (selector === 'ul' ? list : null) };
-  const button = {
-    style: {}, attrs: {}, listeners: {}, isConnected: true, textContent: '',
+  const makeEl = () => ({
+    style: {}, attrs: {}, listeners: {}, children: [], textContent: '', className: '', isConnected: true,
     setAttribute(key, value) { this.attrs[key] = value; },
     addEventListener(type, fn) { this.listeners[type] = fn; },
-  };
+    appendChild(child) { this.children.push(child); child.parentElement = this; return child; },
+  });
+  const head = makeEl();
+  const list = makeEl();
+  const section = { firstElementChild: head, querySelector: (selector) => (selector === 'ul' ? list : null) };
   const doc = {
     querySelector(selector) {
       if (selector === '[data-plugin-group="official"]') return section;
       if (selector === '[data-plugin-panel="true"] button') return { className: 'official-button' };
       return null;
     },
-    createElement: () => button,
+    createElement: () => makeEl(),
   };
   const before = globalThis.document;
   globalThis.document = doc;
@@ -631,7 +632,13 @@ test('官方分组折叠按钮：装上后能收起与展开列表', () => {
       slots: { inject: (_n, f) => { f(); return () => {}; }, register: () => () => {} },
       configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'ready' }) }) },
     });
-    assert.equal(button.className, 'official-button', '按钮类名应抄自官方按钮');
+    const host = head.children[0];
+    assert.ok(host, '控件宿主应挂在分组标题行里');
+    assert.equal(host.attrs['data-plugin-group-toggle'], 'official');
+    assert.equal(host.style.marginLeft, 'auto', '应被推到标题行最右端');
+    const button = host.children[0];
+    assert.ok(button, '应生成控件');
+    assert.equal(button.className, 'official-button', '退化按钮沿用官方按钮样式');
     assert.equal(button.textContent, '收起');
     assert.equal(list.style.display, '', '初始展开');
     button.listeners.click({ preventDefault() {}, stopPropagation() {} });
@@ -639,7 +646,7 @@ test('官方分组折叠按钮：装上后能收起与展开列表', () => {
     assert.equal(button.textContent, '展开');
     button.listeners.click({ preventDefault() {}, stopPropagation() {} });
     assert.equal(list.style.display, '', '再点一次应展开');
-    assert.equal(head.children.includes(button), true, '按钮挂在分组标题行里');
+    assert.equal(button.textContent, '收起');
   } finally {
     for (const d of cleanups) { try { d?.(); } catch (error) { /* noop */ } }
     if (before === undefined) delete globalThis.document; else globalThis.document = before;
