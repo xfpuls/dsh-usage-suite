@@ -44,7 +44,17 @@ function collectText(node, out = []) {
   if (node === null || node === undefined || typeof node === 'boolean') return out;
   if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return out; }
   if (Array.isArray(node)) { for (const child of node) collectText(child, out); return out; }
-  if (typeof node === 'object' && node.props) collectText(node.props.children, out);
+  if (typeof node === 'object') {
+    // 函数组件（例如官方的折叠行与按钮）要先渲染出来才能收其文字
+    if (typeof node.type === 'function') {
+      try {
+        return collectText(node.type(node.props), out);
+      } catch (error) {
+        return out;
+      }
+    }
+    if (node.props) collectText(node.props.children, out);
+  }
   return out;
 }
 
@@ -242,6 +252,12 @@ test('提供 configForms 与表单构件时，注册「设置 -> 插件」卡片
     },
     settingsTextField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: text }) }),
     settingsNumberField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: Number(text) }) }),
+    DisclosureRow: function DisclosureRow(props) {
+      return React.createElement('div', null, React.createElement('span', null, props.title), props.open ? props.children : null);
+    },
+    Button: function Button(props) {
+      return React.createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children);
+    },
   };
   const fakeRequire = (name) => {
     if (name === 'react') return React;
@@ -269,7 +285,7 @@ test('提供 configForms 与表单构件时，注册「设置 -> 插件」卡片
   assert.ok(card, '应注册设置卡片');
   assert.equal(card.entry.name, 'plugins.item');
   assert.equal(typeof card.component, 'function');
-  assert.equal(card.component({}), null, '没有表单快照时不渲染');
+  assert.equal(render(card.component, {}), null, '没有表单快照时不渲染');
 });
 
 test('表单构件缺失时安静跳过设置卡片，不影响三个挂载点', () => {
@@ -482,6 +498,12 @@ test('宿主还没提供配置命名空间时，卡片显示提示而不是消�
     },
     settingsTextField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: text }) }),
     settingsNumberField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: Number(text) }) }),
+    DisclosureRow: function DisclosureRow(props) {
+      return React.createElement('div', null, React.createElement('span', null, props.title), props.open ? props.children : null);
+    },
+    Button: function Button(props) {
+      return React.createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children);
+    },
   };
   const fakeRequire = (name) => {
     if (name === 'react') return React;
@@ -507,4 +529,76 @@ test('宿主还没提供配置命名空间时，卡片显示提示而不是消�
   });
   assert.ok(tree, '配置未就绪时要渲染提示而不是返回空');
   assert.ok(collectText(tree).join('').includes('配置暂不可用'));
+});
+
+
+test('列表卡片（summary 视图）只显示一行说明，不铺开表单', () => {
+  const fakePrimitives = {
+    SettingsFormModel: class { bind() { return { getSnapshot: () => ({}), subscribe: () => () => {} }; } shell() { return {}; } field() { return {}; } actions() { return {}; } dispose() {} },
+    settingsTextField: (field) => ({ field }),
+    settingsNumberField: (field) => ({ field }),
+  };
+  const plugin = definition.factory((name) => {
+    if (name === 'react') return React;
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') return fakePrimitives;
+    throw new Error('unknown module ' + name);
+  });
+  const registered = [];
+  plugin.apply({
+    effect: (fn) => { const d = fn(); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+    slots: { inject: (_n, f) => { f(); return () => {}; }, register: (entry, component) => { registered.push({ entry, component }); return () => {}; } },
+    configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'ready' }) }) },
+  });
+  const card = registered.find((item) => item.entry.id === 'dsh-usage-suite');
+  const tree = render(card.component, { view: 'summary' });
+  assert.ok(tree, 'summary 视图要有内容');
+  const text = collectText(tree).join('');
+  assert.ok(text.includes('输入框下方显示本轮花费'), 'summary 应是一行说明');
+  assert.ok(!text.includes('价目表'), 'summary 不应铺开分组');
+});
+
+test('详情页把字段分成三组，默认只展开第一组', () => {
+  const fakePrimitives = {
+    SettingsFormModel: class {
+      bind(project) { return { getSnapshot: () => project(), subscribe: () => () => {} }; }
+      shell() { return { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false }; }
+      field(field) { return { text: field === 'pollSeconds' ? '1' : '', overridden: false, invalid: false }; }
+      actions() { return { edit: () => {}, resetField: () => {}, save: () => {}, discard: () => {} }; }
+      dispose() {}
+    },
+    settingsTextField: (field) => ({ field, format: () => '', parse: () => ({ kind: 'set', value: '' }) }),
+    settingsNumberField: (field) => ({ field, format: () => '', parse: () => ({ kind: 'set', value: 0 }) }),
+    DisclosureRow: function DisclosureRow(props) {
+      return React.createElement('div', { 'data-group': props.title, 'data-open': props.open ? 'yes' : 'no' },
+        React.createElement('span', { onClick: props.onToggle }, props.title),
+        props.open ? props.children : null);
+    },
+    Button: function Button(props) {
+      return React.createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children);
+    },
+  };
+  const plugin = definition.factory((name) => {
+    if (name === 'react') return React;
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') return fakePrimitives;
+    throw new Error('unknown module ' + name);
+  });
+  const registered = [];
+  plugin.apply({
+    effect: (fn) => { const d = fn(); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+    slots: { inject: (_n, f) => { f(); return () => {}; }, register: (entry, component) => { registered.push({ entry, component }); return () => {}; } },
+    configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'ready', writable: true, value: {} }) }) },
+  });
+  const card = registered.find((item) => item.entry.id === 'dsh-usage-suite');
+  const snapshot = { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false, values: {} };
+  const tree = render(card.component, {
+    hooks: { settings: () => snapshot },
+    edit: () => {}, resetField: () => {}, save: () => {}, discard: () => {},
+  });
+  const text = collectText(tree).join('');
+  assert.ok(text.includes('基础设置'), '应有基础设置分组');
+  assert.ok(text.includes('法定节假日'), '应有节假日分组');
+  assert.ok(text.includes('价目表'), '应有价目表分组');
+  assert.ok(text.includes('界面刷新间隔'), '第一组默认展开');
+  assert.ok(!text.includes('自动获取中国法定节假日'), '第二组默认收起');
+  assert.ok(!text.includes('flash 缓存命中 · 高峰'), '第三组默认收起');
 });
