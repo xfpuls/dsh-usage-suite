@@ -399,3 +399,68 @@ test('滚动视口整块滚出可视区时才算被盖住', () => {
     delete globalThis.getComputedStyle;
   }
 });
+
+
+test('右侧面板只占一条、盖住气泡位置时也要隐藏', () => {
+  const pin = registry().get('question-pin').component;
+  // elementsFromPoint 模拟：气泡所在的那一点，最上层是右侧 diff 面板（不属于聊天区）
+  const panel = { closest: () => null };
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    elementsFromPoint: () => [panel],
+    elementFromPoint: () => panel,
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(ITEMS) }), null, '气泡位置被面板压住时应隐藏');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('气泡位置仍属于聊天区时正常显示', () => {
+  const pin = registry().get('question-pin').component;
+  const chat = { closest: (selector) => (selector === '[data-chat-flow]' ? {} : null) };
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    elementsFromPoint: () => [chat],
+    elementFromPoint: () => chat,
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(ITEMS) });
+    assert.ok(tree, '气泡位置可用时应显示');
+    assert.ok(collectText(tree).join('').includes('第 3 轮'));
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('气泡自身元素在栈顶时跳过它继续往下看', () => {
+  const pin = registry().get('question-pin').component;
+  const own = { closest: (selector) => (selector === '[data-question-pin]' ? {} : null) };
+  const chat = { closest: (selector) => (selector === '[data-chat-flow]' ? {} : null) };
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    elementsFromPoint: () => [own, chat],
+    elementFromPoint: () => own,
+    querySelectorAll: () => [],
+    body: {},
+  };
+  try {
+    assert.ok(render(pin, { useChat: fakeUseChat(ITEMS) }), '应跳过气泡自身后命中聊天区');
+  } finally {
+    delete globalThis.document;
+  }
+});
