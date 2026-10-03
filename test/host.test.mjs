@@ -23,7 +23,7 @@ const todayNoon = (() => { const d = new Date(); d.setHours(12, 0, 0, 0); return
 
 /** 所有价格都设为 1 元/百万，使费用断言与计费时段无关。 */
 const rawConfig = {
-  enabled: true, includeSubagents: false, pollSeconds: 1, holidays: '',
+  enabled: true, includeSubagents: false, pollSeconds: 1, holidays: '', autoHolidays: false,
   flashCacheHitPeak: 1, flashCacheHitIdle: 1, flashCacheMissPeak: 1, flashCacheMissIdle: 1, flashOutputPeak: 1, flashOutputIdle: 1,
   proCacheHitPeak: 1, proCacheHitIdle: 1, proCacheMissPeak: 1, proCacheMissIdle: 1, proOutputPeak: 1, proOutputIdle: 1,
 };
