@@ -1,6 +1,6 @@
 {
   "name": "dsh-usage-suite",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "DSH 用量与费用统计 + 提问置顶：输入框下方显示本轮花费，侧栏显示今日 token、消费与空闲/高峰时段，对话区顶部钉住当前提问并可点击巡回。",
   "main": "lib/index.js",
