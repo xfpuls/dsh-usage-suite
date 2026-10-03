@@ -692,3 +692,44 @@ test('桌面操作按钮：缺 react-dom 时注入安静跳过', () => {
     if (before === undefined) delete globalThis.document; else globalThis.document = before;
   }
 });
+
+
+test('官方分组折叠状态会被记住，重新注入不弹回展开', () => {
+  const plugin = definition.factory(require);
+  const makeEl = () => ({
+    style: {}, attrs: {}, listeners: {}, children: [], textContent: '', className: '', isConnected: true,
+    setAttribute(key, value) { this.attrs[key] = value; },
+    addEventListener(type, fn) { this.listeners[type] = fn; },
+    appendChild(child) { this.children.push(child); child.parentElement = this; return child; },
+  });
+  const head = makeEl();
+  const list = makeEl();
+  const section = { firstElementChild: head, querySelector: (selector) => (selector === 'ul' ? list : null) };
+  const doc = {
+    querySelector(selector) {
+      if (selector === '[data-plugin-group="official"]') return section;
+      if (selector === '[data-plugin-panel="true"] button') return { className: 'official-button' };
+      return null;
+    },
+    createElement: () => makeEl(),
+  };
+  const beforeDoc = globalThis.document;
+  const beforeWindow = globalThis.window;
+  globalThis.document = doc;
+  globalThis.window = Object.assign({}, beforeWindow, {
+    localStorage: { getItem: () => 'false', setItem: () => {} },
+  });
+  const cleanups = [];
+  try {
+    plugin.apply({
+      effect: (fn) => { const d = fn(); cleanups.push(d); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+      slots: { inject: (_n, f) => { f(); return () => {}; }, register: () => () => {} },
+      configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'ready' }) }) },
+    });
+    assert.equal(list.style.display, 'none', '上次收起过，注入后应保持收起');
+  } finally {
+    for (const d of cleanups) { try { d?.(); } catch (error) { /* noop */ } }
+    if (beforeDoc === undefined) delete globalThis.document; else globalThis.document = beforeDoc;
+    if (beforeWindow === undefined) delete globalThis.window; else globalThis.window = beforeWindow;
+  }
+});
