@@ -464,3 +464,47 @@ test('气泡自身元素在栈顶时跳过它继续往下看', () => {
     delete globalThis.document;
   }
 });
+
+
+test('宿主还没提供配置命名空间时，卡片显示提示而不是消失', () => {
+  const fakePrimitives = {
+    SettingsFormModel: class {
+      bind() {
+        return {
+          getSnapshot: () => ({ available: false, writable: false, dirty: false, invalid: false, saving: false, failed: false, values: {} }),
+          subscribe: () => () => {},
+        };
+      }
+      shell() { return { available: false, writable: false, dirty: false, invalid: false, saving: false, failed: false }; }
+      field() { return { text: '', overridden: false, invalid: false }; }
+      actions() { return { edit: () => {}, resetField: () => {}, save: () => {}, discard: () => {} }; }
+      dispose() {}
+    },
+    settingsTextField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: text }) }),
+    settingsNumberField: (field) => ({ field, format: () => '', parse: (text) => ({ kind: 'set', value: Number(text) }) }),
+  };
+  const fakeRequire = (name) => {
+    if (name === 'react') return React;
+    if (name === '@deepseek-ai/dsh-client-ui-primitives') return fakePrimitives;
+    throw new Error('unknown module ' + name);
+  };
+  const plugin = definition.factory(fakeRequire);
+  const registered = [];
+  plugin.apply({
+    effect: (fn) => { const d = fn(); return () => { try { d?.(); } catch (error) { /* noop */ } }; },
+    slots: {
+      inject: (_name, factory) => { factory(); return () => {}; },
+      register: (entry, component) => { registered.push({ entry, component }); return () => {}; },
+    },
+    configForms: { get: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ status: 'idle' }) }) },
+  });
+  const card = registered.find((item) => item.entry.id === 'dsh-usage-suite');
+  assert.ok(card, '即使配置没就绪也要注册卡片');
+  const snapshot = { available: false, writable: false, dirty: false, invalid: false, saving: false, failed: false, values: {} };
+  const tree = render(card.component, {
+    hooks: { settings: () => snapshot },
+    edit: () => {}, resetField: () => {}, save: () => {}, discard: () => {},
+  });
+  assert.ok(tree, '配置未就绪时要渲染提示而不是返回空');
+  assert.ok(collectText(tree).join('').includes('配置暂不可用'));
+});
