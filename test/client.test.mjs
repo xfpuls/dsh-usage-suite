@@ -301,7 +301,7 @@ test('对话区被别的面板盖住时不渲染气泡', () => {
       return null;
     },
     // 命中测试返回一个不属于聊天内容的元素：说明被文件预览之类的面板盖住了
-    elementFromPoint: () => ({ closest: () => null }),
+    elementFromPoint: () => ({ closest: (selector) => (selector.includes('data-sidebar-right-panel') ? {} : null) }),
     querySelectorAll: () => [],
     body: {},
   };
@@ -388,7 +388,7 @@ test('滚动视口整块滚出可视区时才算被盖住', () => {
       if (selector === '[data-chat-flow]') return flow;
       return null;
     },
-    elementFromPoint: () => ({ closest: () => null }),
+    elementFromPoint: () => ({ closest: (selector) => (selector.includes('data-sidebar-right-panel') ? {} : null) }),
     querySelectorAll: () => [],
     body: {},
   };
@@ -404,7 +404,7 @@ test('滚动视口整块滚出可视区时才算被盖住', () => {
 test('右侧面板只占一条、盖住气泡位置时也要隐藏', () => {
   const pin = registry().get('question-pin').component;
   // elementsFromPoint 模拟：气泡所在的那一点，最上层是右侧 diff 面板（不属于聊天区）
-  const panel = { closest: () => null };
+  const panel = { closest: (selector) => (selector.includes('data-sidebar-right-panel') ? {} : null) };
   globalThis.document = {
     querySelector(selector) {
       if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
