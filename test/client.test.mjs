@@ -100,11 +100,12 @@ test('模块以 dsh-usage-suite 注册并导出 inject/apply', () => {
   assert.equal(typeof plugin.apply, 'function');
 });
 
-test('一次注册三个挂载点', () => {
+test('一次注册四个挂载点', () => {
   const byId = registry();
-  assert.equal(byId.size, 3);
+  assert.equal(byId.size, 4);
   assert.equal(byId.get('usage-meter-turn').entry.name, 'conversation.composer.dock');
   assert.equal(byId.get('usage-meter-today').entry.name, 'sidebar.footer.action');
+  assert.equal(byId.get('desktop-actions').entry.name, 'sidebar.footer.action');
   assert.equal(byId.get('question-pin').entry.name, 'conversation.session.header.utilities');
 });
 
@@ -302,7 +303,7 @@ test('表单构件缺失时安静跳过设置卡片，不影响三个挂载点',
     },
     configForms: { get: () => ({}), whileServed: () => () => {} },
   });
-  assert.equal(registered.length, 3, '仍然注册三个界面挂载点');
+  assert.equal(registered.length, 4, '界面挂载点应仍全部注册');
   assert.ok(!registered.some((item) => item.entry.name === 'plugins.item'));
 });
 
@@ -669,4 +670,27 @@ test('官方分组不存在时安静不做事，清理也不报错', () => {
   } finally {
     if (before === undefined) delete globalThis.document; else globalThis.document = before;
   }
+});
+
+
+test('桌面操作按钮：非桌面端时「重启桌面端」禁用', () => {
+  const pin = registry().get('desktop-actions').component;
+  const beforeWindow = globalThis.window;
+  const tree = render(pin, {});
+  const texts = collectText(tree).join('');
+  assert.ok(texts.includes('重启桌面端'), '应有重启按钮');
+  assert.ok(texts.includes('重载界面'), '应有重载按钮');
+  // 测试环境里没有 window.desktopNext，重启按钮应为禁用态
+  const findButtons = (node, out = []) => {
+    if (!node || typeof node !== 'object') return out;
+    if (Array.isArray(node)) { for (const child of node) findButtons(child, out); return out; }
+    if (node.type === 'button' || typeof node.type === 'function' || node.type === 'button') out.push(node);
+    if (node.props && node.props.children !== undefined) findButtons(node.props.children, out);
+    return out;
+  };
+  const buttons = findButtons(tree).filter((n) => n.props && (n.props.children === '重启桌面端' || n.props.children === '重载界面'));
+  assert.equal(buttons.length, 2, '应有两个按钮');
+  const restartButton = buttons.find((b) => b.props.children === '重启桌面端');
+  assert.equal(restartButton.props.disabled, true, '非桌面端时重启按钮应禁用');
+  void beforeWindow;
 });
