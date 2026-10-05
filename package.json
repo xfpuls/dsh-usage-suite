@@ -40,5 +40,25 @@
     "@deepseek-ai/schemastery": "^3.18.4"
   },
   "license": "MIT",
-  "author": "dsh-usage-suite contributors"
+  "author": "dsh-usage-suite contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xfpuls/dsh-usage-suite.git"
+  },
+  "homepage": "https://github.com/xfpuls/dsh-usage-suite#readme",
+  "bugs": {
+    "url": "https://github.com/xfpuls/dsh-usage-suite/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "usage",
+    "cost",
+    "tokens",
+    "sidebar"
+  ]
 }
