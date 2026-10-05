@@ -22,6 +22,8 @@ function renderDeep(component, props) {
 }
 
 function render(component, props, data) {
+  // 可见性判断依赖视口高度，缺了会失真 —— 统一给所有用例一个确定值。
+  if (globalThis.window && !globalThis.window.innerHeight) globalThis.window.innerHeight = 900;
   const originals = { useState: React.useState, useEffect: React.useEffect, useRef: React.useRef, useCallback: React.useCallback };
   React.useState = (initial) => {
     const value = data === undefined || data === null
@@ -915,6 +917,66 @@ test('优先用提问自身的行来判断可见性，而不是整轮容器', ()
   }
 });
 
+test('提问很长时：顶部滚出视口、底部仍在屏内，气泡必须隐藏', () => {
+  // 复现用户截图里的真实数值：诊断显示「提问位置 -348」。
+  // 提问带了图片所以很高 —— 顶部在视口上方 348px，但底部还在屏幕里（bottom = 50）。
+  // 旧逻辑只比较顶部，于是判定「已经翻过去了」，气泡赖着不走。
+  const pin = registry().get('question-pin').component;
+  const items = [{ turn: 52, anchorKey: 'a', prompt: '我手动划上去那个气泡还是不会消失', response: '' }];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      const s = String(selector);
+      if (!s.includes('data-chat-turn="52"')) return [];
+      if (s.includes('data-chat-flow-kind="user"')) {
+        return [{ isConnected: true, getBoundingClientRect: () => ({ top: -348, bottom: 50, width: 700, height: 398 }) }];
+      }
+      return [];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '底部还在屏内就应视为看得见');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('提问完全滚出视口（底部也在上方）时，气泡才出现', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [{ turn: 52, anchorKey: 'a', prompt: '我手动划上去那个气泡还是不会消失', response: '' }];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      const s = String(selector);
+      if (!s.includes('data-chat-turn="52"')) return [];
+      if (s.includes('data-chat-flow-kind="user"')) {
+        return [{ isConnected: true, getBoundingClientRect: () => ({ top: -900, bottom: -400, width: 700, height: 500 }) }];
+      }
+      return [];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(items) });
+    assert.ok(tree, '完全滚出去之后才该出现气泡');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
 test('空白与换行差异不算「不一样」', () => {
   const pin = registry().get('question-pin').component;
   const items = [
@@ -952,8 +1014,8 @@ test('提问滚出视野后才显示置顶气泡', () => {
       return null;
     },
     querySelectorAll(selector) {
-      // 同一轮已经滚到视口上方 400px
-      if (selector === '[data-chat-turn="3"]') return [{ getBoundingClientRect: () => ({ top: -400, bottom: 120 }) }];
+      // 同一轮已经完全滚到视口上方（底部也在 0 以上），此时才真的看不见
+      if (selector === '[data-chat-turn="3"]') return [{ getBoundingClientRect: () => ({ top: -500, bottom: -100, width: 700, height: 400 }) }];
       return [];
     },
     elementsFromPoint: () => [{ closest: (selector) => (String(selector).includes('data-chat-flow') ? {} : null) }],
