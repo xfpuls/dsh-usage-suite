@@ -849,6 +849,39 @@ test('内容不同的提问出现在视口里不影响气泡', () => {
   }
 });
 
+test('同一轮的过程分组容器不会把整轮行的位置带偏', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [{ turn: 48, anchorKey: 'a', prompt: '当前的问题', response: '' }];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      const s = String(selector);
+      if (!s.includes('data-chat-turn="48"')) return [];
+      // 带 :not 的「干净」查询只返回代表这一轮的整行；
+      // 不带 :not 的退化查询会连跨越多轮的分组容器一起返回（它的 top 远在视口上方）。
+      if (s.includes(':not(')) {
+        return [{ isConnected: true, getBoundingClientRect: () => ({ top: 190, bottom: 400, width: 700, height: 210 }) }];
+      }
+      return [
+        { isConnected: true, getBoundingClientRect: () => ({ top: -800, bottom: 400, width: 700, height: 1200 }) },
+        { isConnected: true, getBoundingClientRect: () => ({ top: 190, bottom: 400, width: 700, height: 210 }) },
+      ];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '提问可见时应隐藏，不该被分组容器带偏');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
 test('空白与换行差异不算「不一样」', () => {
   const pin = registry().get('question-pin').component;
   const items = [
