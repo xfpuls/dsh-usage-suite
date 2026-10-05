@@ -733,3 +733,54 @@ test('官方分组折叠状态会被记住，重新注入不弹回展开', () =>
     if (beforeWindow === undefined) delete globalThis.window; else globalThis.window = beforeWindow;
   }
 });
+
+
+test('提问还看得见时不显示置顶气泡', () => {
+  const pin = registry().get('question-pin').component;
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      // 当前这一轮（turn 3）的容器，顶部在视口 300px 处 —— 提问就在眼前
+      if (selector === '[data-chat-turn="3"]') return [{ getBoundingClientRect: () => ({ top: 300, bottom: 600 }) }];
+      return [];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(ITEMS) }), null, '提问可见时不应置顶');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('提问滚出视野后才显示置顶气泡', () => {
+  const pin = registry().get('question-pin').component;
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      // 同一轮已经滚到视口上方 400px
+      if (selector === '[data-chat-turn="3"]') return [{ getBoundingClientRect: () => ({ top: -400, bottom: 120 }) }];
+      return [];
+    },
+    elementsFromPoint: () => [{ closest: (selector) => (String(selector).includes('data-chat-flow') ? {} : null) }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(ITEMS) });
+    assert.ok(tree, '提问滚出后应显示气泡');
+    assert.ok(collectText(tree).join('').includes('第 3 轮'));
+  } finally {
+    delete globalThis.document;
+  }
+});
