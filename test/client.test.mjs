@@ -22,7 +22,7 @@ function renderDeep(component, props) {
 }
 
 function render(component, props, data) {
-  const originals = { useState: React.useState, useEffect: React.useEffect, useRef: React.useRef };
+  const originals = { useState: React.useState, useEffect: React.useEffect, useRef: React.useRef, useCallback: React.useCallback };
   React.useState = (initial) => {
     const value = data === undefined || data === null
       ? (typeof initial === 'function' ? initial() : initial)
@@ -31,12 +31,14 @@ function render(component, props, data) {
   };
   React.useEffect = () => {};
   React.useRef = (value) => ({ current: value });
+  React.useCallback = (fn) => fn;
   try {
     return renderDeep(component, props);
   } finally {
     React.useState = originals.useState;
     React.useEffect = originals.useEffect;
     React.useRef = originals.useRef;
+    React.useCallback = originals.useCallback;
   }
 }
 
