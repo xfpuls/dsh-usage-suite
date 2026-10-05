@@ -761,6 +761,122 @@ test('提问还看得见时不显示置顶气泡', () => {
   }
 });
 
+test('视口里出现内容一模一样的另一条提问时，置顶气泡隐藏', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [
+    { turn: 1, anchorKey: 'a', prompt: '同样的问题', response: '' },
+    { turn: 3, anchorKey: 'c', prompt: '同样的问题', response: '' },
+  ];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 800 });
+  globalThis.document = {
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      const matched = /data-chat-turn="(\d+)"/.exec(String(selector));
+      if (!matched) return [];
+      // 第 1 轮内容相同且正显示在视口里；第 3 轮已滚到视口上方，单看它自己是该显示的。
+      const rect = Number(matched[1]) === 1
+        ? { top: 120, bottom: 340, width: 500, height: 220 }
+        : { top: -500, bottom: -100, width: 500, height: 400 };
+      return [{ isConnected: true, getBoundingClientRect: () => rect }];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '视口里已有相同内容的提问时应隐藏');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('内容相同的提问不在视口里时，气泡照常显示', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [
+    { turn: 1, anchorKey: 'a', prompt: '同样的问题', response: '' },
+    { turn: 3, anchorKey: 'c', prompt: '同样的问题', response: '' },
+  ];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 800 });
+  globalThis.document = {
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      const matched = /data-chat-turn="(\d+)"/.exec(String(selector));
+      if (!matched) return [];
+      // 第 1 轮在视口下方（看不见）；第 3 轮也滚到上方了。
+      const rect = Number(matched[1]) === 1
+        ? { top: 900, bottom: 1100, width: 500, height: 200 }
+        : { top: -500, bottom: -100, width: 500, height: 400 };
+      return [{ isConnected: true, getBoundingClientRect: () => rect }];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(items) });
+    assert.ok(tree, '重复内容不在视口里时不应隐藏');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('内容不同的提问出现在视口里不影响气泡', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [
+    { turn: 1, anchorKey: 'a', prompt: '别的问题', response: '' },
+    { turn: 3, anchorKey: 'c', prompt: '同样的问题', response: '' },
+  ];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 800 });
+  globalThis.document = {
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      const matched = /data-chat-turn="(\d+)"/.exec(String(selector));
+      if (!matched) return [];
+      const rect = Number(matched[1]) === 1
+        ? { top: 120, bottom: 340, width: 500, height: 220 }
+        : { top: -500, bottom: -100, width: 500, height: 400 };
+      return [{ isConnected: true, getBoundingClientRect: () => rect }];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(items) });
+    assert.ok(tree, '内容不同不应隐藏');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('空白与换行差异不算「不一样」', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [
+    { turn: 1, anchorKey: 'a', prompt: '同样 的\n问题', response: '' },
+    { turn: 3, anchorKey: 'c', prompt: '  同样 的 问题  ', response: '' },
+  ];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 800 });
+  globalThis.document = {
+    querySelector: () => null,
+    querySelectorAll(selector) {
+      const matched = /data-chat-turn="(\d+)"/.exec(String(selector));
+      if (!matched) return [];
+      const rect = Number(matched[1]) === 1
+        ? { top: 120, bottom: 340, width: 500, height: 220 }
+        : { top: -500, bottom: -100, width: 500, height: 400 };
+      return [{ isConnected: true, getBoundingClientRect: () => rect }];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '归一化后相同应视为重复');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
 test('提问滚出视野后才显示置顶气泡', () => {
   const pin = registry().get('question-pin').component;
   globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
