@@ -861,8 +861,10 @@ test('同一轮的过程分组容器不会把整轮行的位置带偏', () => {
     querySelectorAll(selector) {
       const s = String(selector);
       if (!s.includes('data-chat-turn="48"')) return [];
-      // 带 :not 的「干净」查询只返回代表这一轮的整行；
-      // 不带 :not 的退化查询会连跨越多轮的分组容器一起返回（它的 top 远在视口上方）。
+      // 这个场景模拟的是「提问行没有 flow-kind 标记」，精确选择器查不到东西，
+      // 于是退化到下一级：带 :not 的「干净」查询只返回代表这一轮的整行；
+      // 不带 :not 的兜底查询会连跨越多轮的分组容器一起返回（它的 top 远在视口上方）。
+      if (s.includes('data-chat-flow-kind')) return [];
       if (s.includes(':not(')) {
         return [{ isConnected: true, getBoundingClientRect: () => ({ top: 190, bottom: 400, width: 700, height: 210 }) }];
       }
@@ -877,6 +879,37 @@ test('同一轮的过程分组容器不会把整轮行的位置带偏', () => {
   };
   try {
     assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '提问可见时应隐藏，不该被分组容器带偏');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('优先用提问自身的行来判断可见性，而不是整轮容器', () => {
+  const pin = registry().get('question-pin').component;
+  const items = [{ turn: 51, anchorKey: 'a', prompt: '继续', response: '' }];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      const s = String(selector);
+      if (!s.includes('data-chat-turn="51"')) return [];
+      // 提问自身的行：就在视口里
+      if (s.includes('data-chat-flow-kind="user"')) {
+        return [{ isConnected: true, getBoundingClientRect: () => ({ top: 290, bottom: 340, width: 420, height: 50 }) }];
+      }
+      // 整轮容器：包含提问与很长的回复，顶部早已滚出视口上方。
+      // 只看它的话会得出「提问已经翻过去了」的错误结论 —— 气泡就不会让位。
+      return [{ isConnected: true, getBoundingClientRect: () => ({ top: -50, bottom: 600, width: 700, height: 650 }) }];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '提问自身在视口里时应隐藏');
   } finally {
     delete globalThis.document;
   }
