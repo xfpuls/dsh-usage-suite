@@ -749,7 +749,10 @@ test('提问还看得见时不显示置顶气泡', () => {
     },
     querySelectorAll(selector) {
       // 当前这一轮（turn 3）的容器，顶部在视口 300px 处 —— 提问就在眼前
-      if (selector === '[data-chat-turn="3"]') return [{ getBoundingClientRect: () => ({ top: 300, bottom: 600 }) }];
+      // 提问行方块落在视口内
+      if (String(selector).includes('data-chat-turn="3"')) {
+        return [{ isConnected: true, getBoundingClientRect: () => ({ top: 300, bottom: 600, width: 520, height: 300 }) }];
+      }
       return [];
     },
     elementsFromPoint: () => [{ closest: () => null }],
@@ -851,7 +854,7 @@ test('内容不同的提问出现在视口里不影响气泡', () => {
   }
 });
 
-test('同一轮的过程分组容器不会把整轮行的位置带偏', () => {
+test('过程分组容器跨度极大，也不会让气泡误判为「看得见」', () => {
   const pin = registry().get('question-pin').component;
   const items = [{ turn: 48, anchorKey: 'a', prompt: '当前的问题', response: '' }];
   globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
@@ -863,24 +866,19 @@ test('同一轮的过程分组容器不会把整轮行的位置带偏', () => {
     querySelectorAll(selector) {
       const s = String(selector);
       if (!s.includes('data-chat-turn="48"')) return [];
-      // 这个场景模拟的是「提问行没有 flow-kind 标记」，精确选择器查不到东西，
-      // 于是退化到下一级：带 :not 的「干净」查询只返回代表这一轮的整行；
-      // 不带 :not 的兜底查询会连跨越多轮的分组容器一起返回（它的 top 远在视口上方）。
+      // 场景：这一轮没有可用的精确提问节点（flow-kind 查不到）。
       if (s.includes('data-chat-flow-kind')) return [];
-      if (s.includes(':not(')) {
-        return [{ isConnected: true, getBoundingClientRect: () => ({ top: 190, bottom: 400, width: 700, height: 210 }) }];
-      }
-      return [
-        { isConnected: true, getBoundingClientRect: () => ({ top: -800, bottom: 400, width: 700, height: 1200 }) },
-        { isConnected: true, getBoundingClientRect: () => ({ top: 190, bottom: 400, width: 700, height: 210 }) },
-      ];
+      // 但存在跨度极大的分组容器 —— 它几乎总是横跨整个视口。
+      // 如果拿它判断「看得见」，气泡就会永远不出现；正确做法是保守地显示气泡。
+      return [{ isConnected: true, getBoundingClientRect: () => ({ top: -800, bottom: 400, width: 700, height: 1200 }) }];
     },
     elementsFromPoint: () => [{ closest: () => null }],
     elementFromPoint: () => ({ closest: () => null }),
     body: {},
   };
   try {
-    assert.equal(render(pin, { useChat: fakeUseChat(items) }), null, '提问可见时应隐藏，不该被分组容器带偏');
+    const tree = render(pin, { useChat: fakeUseChat(items) });
+    assert.ok(tree, '取不到精确提问节点时应保守显示气泡，不能被跨屏的分组容器带偏');
   } finally {
     delete globalThis.document;
   }
