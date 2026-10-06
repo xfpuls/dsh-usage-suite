@@ -1014,6 +1014,37 @@ test('最新一轮没有提问时，气泡往前找最近一条带提问的轮�
   }
 });
 
+test('余额规则：有赠送余额就相加，没有就只用充值余额', async () => {
+  const t = definition.factory(require).__testing;
+  const makeCtx = (topUp, granted) => ({
+    remote: {
+      account: {
+        getBalance: async () => ({
+          ok: true,
+          value: {
+            status: 'ready',
+            value: topUp === null ? [] : [{ currency: 'CNY', balance: String(topUp) }],
+            bonusWallets: granted === null ? [] : [{ currency: 'CNY', balance: String(granted) }],
+          },
+        }),
+      },
+    },
+  });
+
+  // 有赠送余额：充值 + 赠送
+  await t.requestAccountBalance(makeCtx(49.83, 0.0511));
+  assert.ok(Math.abs(t.readBalance() - 49.8811) < 1e-9, '实际: ' + t.readBalance());
+  assert.equal(t.readBalanceStatus(), '成功');
+
+  // 没有赠送余额：直接用充值余额
+  await t.requestAccountBalance(makeCtx(49.83, 0));
+  assert.ok(Math.abs(t.readBalance() - 49.83) < 1e-9, '实际: ' + t.readBalance());
+
+  // 只有赠送余额：也要能显示出来
+  await t.requestAccountBalance(makeCtx(null, 5));
+  assert.ok(Math.abs(t.readBalance() - 5) < 1e-9, '实际: ' + t.readBalance());
+});
+
 test('空白与换行差异不算「不一样」', () => {
   const pin = registry().get('question-pin').component;
   const items = [
