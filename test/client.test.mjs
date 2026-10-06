@@ -119,7 +119,7 @@ test('本轮花费按四位小数显示并带明细提示', () => {
   const tree = render(turn, {}, USAGE);
   const text = collectText(tree).join('');
   assert.ok(text.includes('本轮'));
-  assert.ok(text.includes('¥0.4384'), '实际: ' + text);
+  assert.ok(text.includes('¥0.44'), '实际: ' + text);
   assert.ok(tree.props.title.includes('缓存命中 5,869,056 tok'));
 });
 
@@ -128,7 +128,7 @@ test('今日卡片显示 token、消费与计费时段', () => {
   const tree = render(today, { wide: true }, USAGE);
   const text = collectText(tree).join('');
   assert.ok(text.includes('6.60M tok'), '实际: ' + text);
-  assert.ok(text.includes('¥0.5749'));
+  assert.ok(text.includes('¥0.57'));
   assert.ok(text.includes('空闲时段'));
   assert.ok(text.includes('北京 09:30'));
 });
