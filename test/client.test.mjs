@@ -104,9 +104,10 @@ test('模块以 dsh-usage-suite 注册并导出 inject/apply', () => {
   assert.equal(typeof plugin.apply, 'function');
 });
 
-test('一次注册三个挂载点', () => {
+test('一次注册全部挂载点', () => {
   const byId = registry();
-  assert.equal(byId.size, 3);
+  // 4 = 三个正式挂载点 + 1 个临时诊断组件（pin-probe，排查完会删除）
+  assert.equal(byId.size, 4);
   assert.equal(byId.get('usage-meter-turn').entry.name, 'conversation.composer.dock');
   assert.equal(byId.get('usage-meter-today').entry.name, 'sidebar.footer.action');
   assert.equal(byId.get('question-pin').entry.name, 'conversation.session.header.utilities');
@@ -306,7 +307,8 @@ test('表单构件缺失时安静跳过设置卡片，不影响三个挂载点',
     },
     configForms: { get: () => ({}), whileServed: () => () => {} },
   });
-  assert.equal(registered.length, 3, '界面挂载点应仍全部注册');
+  // 4 = 三个正式挂载点 + 1 个临时诊断组件
+  assert.equal(registered.length, 4, '界面挂载点应仍全部注册');
   assert.ok(!registered.some((item) => item.entry.name === 'plugins.item'));
 });
 
