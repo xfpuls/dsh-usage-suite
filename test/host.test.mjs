@@ -124,10 +124,14 @@ test('未指定会话时回退到最近活跃会话', async () => {
   assert.equal(response.json.activeSession, 'session-a');
 });
 
-test('会话不存在时返回 null 而不是报错', async () => {
+test('指定的会话不存在时回退到最近活跃会话', async () => {
+  // 切换工作区后，浏览器半可能带着一个账本里还没有的会话标识来请求。
+  // 此时必须回退到最近活跃的会话 —— 否则「本轮花费」会一直空着，
+  // 看起来就像「跨工作区后插件不生效」。
   const response = await callRoute(route(), '/dsh-usage/state?session=nope');
   assert.equal(response.status, 200);
-  assert.equal(response.json.session, null);
+  assert.equal(response.json.session.id, 'session-a');
+  assert.equal(response.json.activeSession, 'session-a');
 });
 
 test('只允许本机访问，其它来源返回 403', async () => {
