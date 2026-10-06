@@ -975,6 +975,42 @@ test('提问完全滚出视口（底部也在上方）时，气泡才出现', ()
   }
 });
 
+test('导航数据未就绪时，气泡从 DOM 兜底取最后一轮提问', () => {
+  // 切工作区或刚打开会话时，Chat 的轮次导航可能还没准备好（items 为空）。
+  // 按旧写法气泡会整个消失，看起来像「跨工作区后插件失效」。
+  const pin = registry().get('question-pin').component;
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      const s = String(selector);
+      if (s.includes('data-chat-flow-kind="user"')) {
+        return [{
+          isConnected: true,
+          getAttribute: () => '7',
+          textContent: '兜底取到的提问',
+          getBoundingClientRect: () => ({ top: -500, bottom: -100, width: 400, height: 40 }),
+        }];
+      }
+      return [];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat([]), sessionId: 'session-x' });
+    assert.ok(tree, '导航为空时也应从 DOM 兜底渲染气泡');
+    assert.ok(collectText(tree).join('').includes('第 7 轮'), '轮次编号应来自 DOM 的 data-chat-turn');
+    assert.ok(collectText(tree).join('').includes('兜底取到的提问'), '提问原文应来自 DOM');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
 test('空白与换行差异不算「不一样」', () => {
   const pin = registry().get('question-pin').component;
   const items = [
