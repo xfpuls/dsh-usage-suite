@@ -977,6 +977,42 @@ test('提问完全滚出视口（底部也在上方）时，气泡才出现', ()
   }
 });
 
+test('最新一轮没有提问时，气泡往前找最近一条带提问的轮次', () => {
+  // 真实场景：第 24 轮是自动任务触发的，没有用户提问（prompt 为空）。
+  // 旧写法死取最后一项 → 拿到空提问 → 因为「提问为空」整个不显示气泡。
+  const pin = registry().get('question-pin').component;
+  const items = [
+    { turn: 1, anchorKey: 'a', prompt: '第一个问题', response: '' },
+    { turn: 24, anchorKey: 'z', prompt: '   ', response: '' },
+  ];
+  globalThis.window = Object.assign({}, globalThis.window, { innerWidth: 1280, innerHeight: 900 });
+  globalThis.document = {
+    querySelector(selector) {
+      if (selector === '[data-conversation-header]') return { getBoundingClientRect: () => ({ bottom: 48 }) };
+      return null;
+    },
+    querySelectorAll(selector) {
+      const s = String(selector);
+      if (s.includes('data-chat-turn="1"')) {
+        return [{ isConnected: true, getBoundingClientRect: () => ({ top: -500, bottom: -100, width: 600, height: 400 }) }];
+      }
+      return [];
+    },
+    elementsFromPoint: () => [{ closest: () => null }],
+    elementFromPoint: () => ({ closest: () => null }),
+    body: {},
+  };
+  try {
+    const tree = render(pin, { useChat: fakeUseChat(items) });
+    assert.ok(tree, '应回退到有提问的那一轮并显示气泡');
+    const text = collectText(tree).join('');
+    assert.ok(text.includes('第 1 轮'), '应显示第 1 轮而不是空提问的第 24 轮');
+    assert.ok(text.includes('第一个问题'), '提问原文应来自第 1 轮');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
 test('空白与换行差异不算「不一样」', () => {
   const pin = registry().get('question-pin').component;
   const items = [
