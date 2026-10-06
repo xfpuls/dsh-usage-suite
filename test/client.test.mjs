@@ -100,7 +100,8 @@ test('模块以 dsh-usage-suite 注册并导出 inject/apply', () => {
   assert.ok(definition);
   assert.equal(definition.id, 'dsh-usage-suite');
   const plugin = definition.factory(require);
-  assert.deepEqual(plugin.inject, ['slots', 'configForms']);
+  // remote 用于读取账号钱包余额（侧栏「剩余费用」）。
+  assert.deepEqual(plugin.inject, ['slots', 'configForms', 'remote']);
   assert.equal(typeof plugin.apply, 'function');
 });
 
